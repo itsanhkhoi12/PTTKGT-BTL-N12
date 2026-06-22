@@ -12,8 +12,8 @@ BFS duyệt theo chiều rộng, đảm bảo tìm được đường đi ngắn
 from collections import deque
 
 from models.maze import Maze, Point
-from models.robot import Robot, Direction
-
+from models.robot import Robot, Directions
+from utils.utils import is_valid_path
 
 def bfs_solve(maze: Maze) -> Robot:
     """
@@ -26,7 +26,7 @@ def bfs_solve(maze: Maze) -> Robot:
         Robot: Đối tượng Robot chứa:
             - current_pos : vị trí hiện tại (end_pos nếu tìm thấy đường)
             - visited_order: thứ tự các ô đã duyệt qua
-            - solution     : đường đi ngắn nhất từ start đến end
+            - shortest_solution     : đường đi ngắn nhất từ start đến end
                              (rỗng nếu không tìm thấy đường)
     """
     start = maze.start_pos
@@ -42,7 +42,7 @@ def bfs_solve(maze: Maze) -> Robot:
 
     # Nếu start trùng end → đã đến đích
     if start == end:
-        robot.solution = [start]
+        robot.shortest_solution = [start]
         robot.visited_order = [start]
         return robot
 
@@ -68,12 +68,12 @@ def bfs_solve(maze: Maze) -> Robot:
         robot.current_pos = current
 
         # Duyệt 4 hướng: LÊN, XUỐNG, TRÁI, PHẢI
-        for direction in Direction:
+        for direction in Directions:
             dx, dy = direction.value
             neighbor = Point(x=current.x + dx, y=current.y + dy)
 
             # Kiểm tra hàng xóm có hợp lệ không
-            if not _is_valid(maze, neighbor):
+            if not is_valid_path(maze, neighbor):
                 continue
 
             # Bỏ qua ô đã thăm
@@ -101,39 +101,14 @@ def bfs_solve(maze: Maze) -> Robot:
 
     if found:
         robot.current_pos = end
-        robot.solution = _reconstruct_path(parent, start, end)
+        robot.shortest_solution = _reconstruct_path(parent, start, end)
     # Nếu không tìm thấy → solution giữ nguyên rỗng
 
     return robot
 
 
-def _is_valid(maze: Maze, point: Point) -> bool:
-    """
-    Kiểm tra một điểm có nằm trong mê cung và không phải tường hay không.
-
-    Args:
-        maze : Đối tượng Maze.
-        point: Điểm cần kiểm tra.
-
-    Returns:
-        True nếu điểm hợp lệ (trong biên và là đường đi), False nếu không.
-    """
-    # Kiểm tra nằm trong biên
-    if point.x < 0 or point.x >= maze.rows:
-        return False
-    if point.y < 0 or point.y >= maze.cols:
-        return False
-
-    # Kiểm tra không phải tường (1 = tường)
-    if maze.grid[point.x][point.y] == 1:
-        return False
-
-    return True
-
-
 def _reconstruct_path(
     parent: dict[Point, Point | None],
-    start: Point,
     end: Point,
 ) -> list[Point]:
     """

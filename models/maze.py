@@ -23,4 +23,4 @@ class Maze(BaseModel):
 
     # Điểm kết thúc của mê cung
     end_pos: Point
-
+    
