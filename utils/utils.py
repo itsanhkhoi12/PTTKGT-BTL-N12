@@ -1,5 +1,6 @@
+import json
 from models.maze import Maze, Point
-
+from typing import Any
 
 def is_valid_path(maze: Maze, point: Point) -> bool:
     """
@@ -31,3 +32,8 @@ def is_valid_path(maze: Maze, point: Point) -> bool:
         return False
 
     return True
+
+
+def json_file_load(json_file)->Any:
+    with open(json_file,'r',encoding='utf-8') as f:
+        return json.load(f)

@@ -11,9 +11,15 @@ class Directions(Enum):
 
 
 class Robot(BaseModel):
+
     current_pos: Point
+
     # Danh sách các ô đã duyệt qua (thứ tự BFS)
     visited_order: list[Point] = Field(default_factory=list)
+
+    # Tất cả các đường đi khả thi
+    possible_solutions: list[Point] = Field(default_factory=list)
+
     # Đường đi ngắn nhất từ start đến end
     shortest_solution: list[Point] = Field(default_factory=list)
     
