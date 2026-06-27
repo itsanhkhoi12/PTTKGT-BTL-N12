@@ -12,6 +12,10 @@ class MazeLayout(tk.Frame):
         5: "#FDCB6E",  # final path
     }
 
+    MIN_CELL_SIZE = 4
+    MAX_CELL_SIZE = 60
+    DEFAULT_CELL_SIZE = 28
+
     def __init__(self, parent: tk.Widget, cell_size: int = 28):
         super().__init__(parent, bg="white", padx=10, pady=10)
 
@@ -20,18 +24,43 @@ class MazeLayout(tk.Frame):
         self.rect_matrix: list[list[int | None]] = []
         self.path_line_id = None
 
+        # Animation state
+        self._anim_after_id: str | None = None  # ID của after() đang chạy
+        self._is_animating: bool = False
+
         self._event_handler: Callable[[str, int, int], None] | None = None
+
+        # --- Scrollable canvas setup ---
+        self._h_scrollbar = tk.Scrollbar(self, orient=tk.HORIZONTAL)
+        self._v_scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
 
         self.canvas = tk.Canvas(
             self,
             bg="white",
             highlightthickness=1,
             highlightbackground="#DCDDE1",
+            xscrollcommand=self._h_scrollbar.set,
+            yscrollcommand=self._v_scrollbar.set,
         )
+
+        self._h_scrollbar.config(command=self.canvas.xview)
+        self._v_scrollbar.config(command=self.canvas.yview)
+
+        self._v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
         self.canvas.pack(expand=True, fill=tk.BOTH)
 
+        # --- Bindings ---
         self.canvas.bind("<Button-1>", self._handle_left_click)
         self.canvas.bind("<Button-3>", self._handle_right_click)
+
+        # Ctrl + cuộn chuột để zoom
+        self.canvas.bind("<Control-MouseWheel>", self._handle_zoom)
+
+        # Cuộn chuột bình thường để scroll dọc
+        self.canvas.bind("<MouseWheel>", self._handle_scroll)
+        # Shift + cuộn để scroll ngang
+        self.canvas.bind("<Shift-MouseWheel>", self._handle_scroll_horizontal)
 
     def bind_event_handler(
         self,
@@ -42,6 +71,44 @@ class MazeLayout(tk.Frame):
     def _emit(self, event_name: str, row: int, col: int) -> None:
         if self._event_handler:
             self._event_handler(event_name, row, col)
+
+    # ================================================================
+    #  ZOOM
+    # ================================================================
+
+    def _handle_zoom(self, event) -> None:
+        """Ctrl + cuộn chuột để zoom to/nhỏ mê cung."""
+        if not self.grid:
+            return
+
+        old_size = self.cell_size
+
+        if event.delta > 0:
+            # Zoom in
+            self.cell_size = min(self.cell_size + 2, self.MAX_CELL_SIZE)
+        else:
+            # Zoom out
+            self.cell_size = max(self.cell_size - 2, self.MIN_CELL_SIZE)
+
+        if self.cell_size != old_size:
+            self._redraw_current_grid()
+
+    def _handle_scroll(self, event) -> None:
+        """Cuộn chuột bình thường để scroll dọc."""
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _handle_scroll_horizontal(self, event) -> None:
+        """Shift + cuộn chuột để scroll ngang."""
+        self.canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _redraw_current_grid(self) -> None:
+        """Vẽ lại toàn bộ mê cung với cell_size mới (dùng khi zoom)."""
+        if self.grid:
+            self.draw_maze(self.grid)
+
+    # ================================================================
+    #  VẼ MÊ CUNG
+    # ================================================================
 
     def draw_maze(self, grid: list[list[int]]) -> None:
         self.grid = grid
@@ -55,8 +122,6 @@ class MazeLayout(tk.Frame):
         height = rows * self.cell_size
 
         self.canvas.config(
-            width=width,
-            height=height,
             scrollregion=(0, 0, width, height),
         )
 
@@ -118,7 +183,7 @@ class MazeLayout(tk.Frame):
         self.path_line_id = self.canvas.create_line(
             flat_points,
             fill="#FF4757",
-            width=5,
+            width=max(2, self.cell_size // 5),
             capstyle=tk.ROUND,
             joinstyle=tk.ROUND,
         )
@@ -127,22 +192,184 @@ class MazeLayout(tk.Frame):
         if self.path_line_id:
             self.canvas.delete(self.path_line_id)
             self.path_line_id = None
+            
+        if hasattr(self, "_path_segments"):
+            for seg in self._path_segments:
+                self.canvas.delete(seg)
+            self._path_segments.clear()
+
+        if hasattr(self, "_robot_id") and self._robot_id:
+            self.canvas.delete(self._robot_id)
+            self._robot_id = None
+
+    # ================================================================
+    #  ANIMATION
+    # ================================================================
+
+    @property
+    def is_animating(self) -> bool:
+        return self._is_animating
+
+    def stop_animation(self) -> None:
+        """Dừng animation đang chạy."""
+        if self._anim_after_id is not None:
+            self.after_cancel(self._anim_after_id)
+            self._anim_after_id = None
+        self._is_animating = False
+
+    def animate_cells(
+        self,
+        cells: list[tuple[int, int, int]],
+        delay_ms: int = 20,
+        on_complete: Callable[[], None] | None = None,
+    ) -> None:
+        """
+        Tô màu từng ô một theo thứ tự, tạo hiệu ứng animation.
+
+        Args:
+            cells: Danh sách (row, col, state) cần tô.
+            delay_ms: Thời gian chờ giữa mỗi ô (ms).
+            on_complete: Callback khi animation hoàn tất.
+        """
+        self.stop_animation()
+        self._is_animating = True
+        self._animate_cells_step(cells, 0, delay_ms, on_complete)
+
+    def _animate_cells_step(
+        self,
+        cells: list[tuple[int, int, int]],
+        index: int,
+        delay_ms: int,
+        on_complete: Callable[[], None] | None,
+    ) -> None:
+        """Bước đệ quy của animation tô màu ô."""
+        if not self._is_animating:
+            return
+
+        if index >= len(cells):
+            self._is_animating = False
+            self._anim_after_id = None
+            if on_complete:
+                on_complete()
+            return
+
+        row, col, state = cells[index]
+        self.update_cell(row, col, state)
+
+        self._anim_after_id = self.after(
+            delay_ms,
+            self._animate_cells_step,
+            cells,
+            index + 1,
+            delay_ms,
+            on_complete,
+        )
+
+    def animate_path_line(
+        self,
+        path: list[tuple[int, int]],
+        delay_ms: int = 40,
+        on_complete: Callable[[], None] | None = None,
+    ) -> None:
+        """
+        Vẽ đường đi ngắn nhất từng đoạn một (animation).
+
+        Args:
+            path: Danh sách (row, col) tạo thành đường đi.
+            delay_ms: Thời gian chờ giữa mỗi đoạn (ms).
+            on_complete: Callback khi animation hoàn tất.
+        """
+        self.clear_final_path()
+
+        if len(path) < 2:
+            if on_complete:
+                on_complete()
+            return
+
+        self._is_animating = True
+        self._path_segments: list[int] = []
+        
+        # Create robot emoji at the start position
+        r0, c0 = path[0]
+        x0 = c0 * self.cell_size + self.cell_size // 2
+        y0 = r0 * self.cell_size + self.cell_size // 2
+        font_size = max(10, int(self.cell_size * 0.6))
+        self._robot_id = self.canvas.create_text(
+            x0, y0, text="🤖", font=("Segoe UI Emoji", font_size)
+        )
+        
+        self._animate_line_step(path, 1, delay_ms, on_complete)
+
+    def _animate_line_step(
+        self,
+        path: list[tuple[int, int]],
+        index: int,
+        delay_ms: int,
+        on_complete: Callable[[], None] | None,
+    ) -> None:
+        """Bước đệ quy vẽ từng đoạn đường và di chuyển robot."""
+        if not self._is_animating:
+            return
+
+        if index >= len(path):
+            self._is_animating = False
+            self._anim_after_id = None
+            if on_complete:
+                on_complete()
+            return
+
+        r1, c1 = path[index - 1]
+        r2, c2 = path[index]
+
+        x1 = c1 * self.cell_size + self.cell_size // 2
+        y1 = r1 * self.cell_size + self.cell_size // 2
+        x2 = c2 * self.cell_size + self.cell_size // 2
+        y2 = r2 * self.cell_size + self.cell_size // 2
+
+        seg_id = self.canvas.create_line(
+            x1, y1, x2, y2,
+            fill="#FF4757",
+            width=max(2, self.cell_size // 5),
+            capstyle=tk.ROUND,
+        )
+        self._path_segments.append(seg_id)
+
+        # Di chuyển robot đến điểm cuối của đoạn mới
+        if hasattr(self, "_robot_id") and self._robot_id:
+            self.canvas.coords(self._robot_id, x2, y2)
+            self.canvas.tag_raise(self._robot_id)
+
+        self._anim_after_id = self.after(
+            delay_ms,
+            self._animate_line_step,
+            path,
+            index + 1,
+            delay_ms,
+            on_complete,
+        )
+
+    # ================================================================
+    #  CLICK HANDLERS
+    # ================================================================
 
     def _handle_left_click(self, event) -> None:
         row, col = self._event_to_cell(event)
 
         if self._is_inside(row, col):
-            self._emit("add_wall", row, col)
+            self._emit("left_click", row, col)
 
     def _handle_right_click(self, event) -> None:
         row, col = self._event_to_cell(event)
 
         if self._is_inside(row, col):
-            self._emit("remove_wall", row, col)
+            self._emit("right_click", row, col)
 
     def _event_to_cell(self, event) -> tuple[int, int]:
-        col = event.x // self.cell_size
-        row = event.y // self.cell_size
+        # Chuyển đổi toạ độ canvas (có tính scroll offset)
+        canvas_x = self.canvas.canvasx(event.x)
+        canvas_y = self.canvas.canvasy(event.y)
+        col = int(canvas_x) // self.cell_size
+        row = int(canvas_y) // self.cell_size
         return row, col
 
     def _is_inside(self, row: int, col: int) -> bool:

@@ -101,7 +101,7 @@ def bfs_solve(maze: Maze) -> Robot:
 
     if found:
         robot.current_pos = end
-        robot.shortest_solution = _reconstruct_path(parent, start, end)
+        robot.shortest_solution = _reconstruct_path(parent, end)
     # Nếu không tìm thấy → solution giữ nguyên rỗng
 
     return robot
