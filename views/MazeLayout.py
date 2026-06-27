@@ -192,6 +192,15 @@ class MazeLayout(tk.Frame):
         if self.path_line_id:
             self.canvas.delete(self.path_line_id)
             self.path_line_id = None
+            
+        if hasattr(self, "_path_segments"):
+            for seg in self._path_segments:
+                self.canvas.delete(seg)
+            self._path_segments.clear()
+
+        if hasattr(self, "_robot_id") and self._robot_id:
+            self.canvas.delete(self._robot_id)
+            self._robot_id = None
 
     # ================================================================
     #  ANIMATION
@@ -279,6 +288,16 @@ class MazeLayout(tk.Frame):
 
         self._is_animating = True
         self._path_segments: list[int] = []
+        
+        # Create robot emoji at the start position
+        r0, c0 = path[0]
+        x0 = c0 * self.cell_size + self.cell_size // 2
+        y0 = r0 * self.cell_size + self.cell_size // 2
+        font_size = max(10, int(self.cell_size * 0.6))
+        self._robot_id = self.canvas.create_text(
+            x0, y0, text="🤖", font=("Segoe UI Emoji", font_size)
+        )
+        
         self._animate_line_step(path, 1, delay_ms, on_complete)
 
     def _animate_line_step(
@@ -288,7 +307,7 @@ class MazeLayout(tk.Frame):
         delay_ms: int,
         on_complete: Callable[[], None] | None,
     ) -> None:
-        """Bước đệ quy vẽ từng đoạn đường."""
+        """Bước đệ quy vẽ từng đoạn đường và di chuyển robot."""
         if not self._is_animating:
             return
 
@@ -314,6 +333,11 @@ class MazeLayout(tk.Frame):
             capstyle=tk.ROUND,
         )
         self._path_segments.append(seg_id)
+
+        # Di chuyển robot đến điểm cuối của đoạn mới
+        if hasattr(self, "_robot_id") and self._robot_id:
+            self.canvas.coords(self._robot_id, x2, y2)
+            self.canvas.tag_raise(self._robot_id)
 
         self._anim_after_id = self.after(
             delay_ms,

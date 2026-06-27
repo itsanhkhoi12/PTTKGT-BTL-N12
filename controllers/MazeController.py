@@ -1,13 +1,12 @@
 import time
 import copy
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import messagebox
 
 from models.Maze import Maze
 from models.Point import Point
 from algorithms.bfs import bfs_solve
 from algorithms.dfs import finding_valid_paths, maze_generation
-from utils.FileProcessor import FileProcessor
 
 
 class MazeController:
@@ -320,76 +319,6 @@ class MazeController:
 
         self._render_maze()
         self.view.control_panel.update_metrics(status="Đã xoá đường đi")
-
-    # ================================================================
-    #  NHẬP / LƯU MÊ CUNG
-    # ================================================================
-
-    def import_maze(self) -> None:
-        """Nhập mê cung từ file JSON."""
-        file_path = filedialog.askopenfilename(
-            title="Chọn file mê cung JSON",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-        )
-
-        if not file_path:
-            return
-
-        try:
-            success, data = FileProcessor.read_json(file_path)
-
-            if not success:
-                messagebox.showerror("Lỗi đọc file", data)
-                return
-
-            self.maze = Maze(
-                rows=data["rows"],
-                cols=data["cols"],
-                grid=data["grid"],
-                start_pos=Point(x=data["start_pos"]["x"], y=data["start_pos"]["y"]),
-                end_pos=Point(x=data["end_pos"]["x"], y=data["end_pos"]["y"]),
-            )
-
-            self._render_maze()
-            self.view.control_panel.update_metrics(status="Đã nhập mê cung từ file")
-
-        except Exception as e:
-            messagebox.showerror("Lỗi nhập mê cung", str(e))
-
-    def save_maze(self) -> None:
-        """Lưu mê cung hiện tại ra file JSON."""
-        if self.maze is None:
-            messagebox.showwarning("Chưa có mê cung", "Vui lòng sinh hoặc nhập mê cung trước!")
-            return
-
-        file_path = filedialog.asksaveasfilename(
-            title="Lưu mê cung",
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-        )
-
-        if not file_path:
-            return
-
-        try:
-            data = {
-                "rows": self.maze.rows,
-                "cols": self.maze.cols,
-                "grid": self.maze.grid,
-                "start_pos": {"x": self.maze.start_pos.x, "y": self.maze.start_pos.y},
-                "end_pos": {"x": self.maze.end_pos.x, "y": self.maze.end_pos.y},
-            }
-
-            success, msg = FileProcessor.write_json(file_path, data)
-
-            if success:
-                messagebox.showinfo("Thành công", "Đã lưu mê cung!")
-                self.view.control_panel.update_metrics(status="Đã lưu mê cung")
-            else:
-                messagebox.showerror("Lỗi lưu file", msg)
-
-        except Exception as e:
-            messagebox.showerror("Lỗi lưu mê cung", str(e))
 
     # ================================================================
     #  HELPER — Vẽ lại mê cung lên canvas
