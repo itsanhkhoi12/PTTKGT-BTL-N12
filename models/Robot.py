@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from enum import Enum
-from models.maze import Point
+from models.Point import Point
 
 
 class Directions(Enum):

@@ -1,5 +1,5 @@
-from models.maze import Point, Maze
-from models.robot import Directions
+from models.Maze import Point, Maze
+from models.Robot import Directions
 from utils.utils import is_valid_path
 import random
 

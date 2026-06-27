@@ -11,8 +11,8 @@ BFS duyệt theo chiều rộng, đảm bảo tìm được đường đi ngắn
 
 from collections import deque
 
-from models.maze import Maze, Point
-from models.robot import Robot, Directions
+from models.Maze import Maze, Point
+from models.Robot import Robot, Directions
 from utils.utils import is_valid_path
 
 def bfs_solve(maze: Maze) -> Robot:

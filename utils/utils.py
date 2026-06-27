@@ -1,5 +1,5 @@
 import json
-from models.maze import Maze, Point
+from models.Maze import Maze, Point
 from typing import Any
 
 def is_valid_path(maze: Maze, point: Point) -> bool:
@@ -19,8 +19,6 @@ def is_valid_path(maze: Maze, point: Point) -> bool:
         True nếu điểm hợp lệ (trong biên và là đường đi), False nếu không.
     """
 
-
-    
     # Kiểm tra điểm đó lọt ngoài biên hay không
     if point.x < 0 or point.x >= maze.rows:
         return False
@@ -32,8 +30,3 @@ def is_valid_path(maze: Maze, point: Point) -> bool:
         return False
 
     return True
-
-
-def json_file_load(json_file)->Any:
-    with open(json_file,'r',encoding='utf-8') as f:
-        return json.load(f)
