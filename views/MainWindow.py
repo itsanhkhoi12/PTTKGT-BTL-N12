@@ -60,8 +60,8 @@ class MainWindow:
             return
 
         actions: dict[str, Callable[[int, int], None]] = {
-            "add_wall": self.controller.add_wall,
-            "remove_wall": self.controller.remove_wall,
+            "left_click": self.controller.handle_left_click,
+            "right_click": self.controller.handle_right_click,
         }
 
         action = actions.get(event_name)

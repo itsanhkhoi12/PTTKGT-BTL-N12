@@ -1,0 +1,412 @@
+import time
+import copy
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
+from models.Maze import Maze
+from models.Point import Point
+from algorithms.bfs import bfs_solve
+from algorithms.dfs import finding_valid_paths, maze_generation
+from utils.FileProcessor import FileProcessor
+
+
+class MazeController:
+    """Controller kết nối View (MainWindow) với Algorithms (BFS, DFS)
+    và quản lý trạng thái mê cung hiện tại.
+    """
+
+    # Trạng thái ô trên grid hiển thị
+    CELL_PATH = 0
+    CELL_WALL = 1
+    CELL_VISITED = 2
+    CELL_START = 3
+    CELL_END = 4
+    CELL_SOLUTION = 5
+
+    def __init__(self, view) -> None:
+        self.view = view
+        self.maze: Maze | None = None
+
+        # Gắn controller vào view
+        self.view.set_controller(self)
+
+    # ================================================================
+    #  SINH MÊ CUNG
+    # ================================================================
+
+    def generate_maze(self) -> None:
+        """Sinh mê cung ngẫu nhiên từ thông số người dùng nhập."""
+        try:
+            params = self.view.control_panel.get_generation_input()
+
+            rows = params["rows"]
+            cols = params["cols"]
+            start = Point(x=1, y=1)
+            end = Point(x=rows - 2, y=cols - 2)
+
+            self.maze = maze_generation(
+                row=rows,
+                col=cols,
+                start_pos=start,
+                end_pos=end,
+            )
+
+            self._render_maze()
+            self.view.control_panel.update_metrics(status="Đã sinh mê cung")
+
+        except Exception as e:
+            messagebox.showerror("Lỗi sinh mê cung", str(e))
+
+    # ================================================================
+    #  TÌM ĐƯỜNG ĐI
+    # ================================================================
+
+    def find_shortest_path(self) -> None:
+        """Tìm đường đi ngắn nhất bằng BFS (có animation)."""
+        if self.maze is None:
+            messagebox.showwarning("Chưa có mê cung", "Vui lòng sinh hoặc nhập mê cung trước!")
+            return
+
+        # Dừng animation cũ nếu đang chạy
+        self.view.maze_layout.stop_animation()
+
+        try:
+            # Xoá đường đi cũ trước khi tìm mới
+            self._render_maze()
+
+            start_time = time.perf_counter()
+            robot = bfs_solve(self.maze)
+            elapsed = time.perf_counter() - start_time
+
+            if robot.shortest_solution:
+                self.view.control_panel.update_metrics(
+                    visited_count=len(robot.visited_order),
+                    path_length=len(robot.shortest_solution),
+                    runtime=elapsed,
+                    status="BFS — Đang hiển thị...",
+                )
+
+                # Bước 1: Animation tô màu các ô đã duyệt
+                visited_cells = [
+                    (p.x, p.y, self.CELL_VISITED)
+                    for p in robot.visited_order
+                    if p != self.maze.start_pos and p != self.maze.end_pos
+                ]
+
+                # Bước 2: Animation tô màu đường đi ngắn nhất
+                solution_cells = [
+                    (p.x, p.y, self.CELL_SOLUTION)
+                    for p in robot.shortest_solution
+                    if p != self.maze.start_pos and p != self.maze.end_pos
+                ]
+
+                # Bước 3: Animation vẽ đường nối
+                path_tuples = [(p.x, p.y) for p in robot.shortest_solution]
+
+                def on_visited_done():
+                    self.view.maze_layout.animate_cells(
+                        solution_cells,
+                        delay_ms=30,
+                        on_complete=on_solution_done,
+                    )
+
+                def on_solution_done():
+                    self.view.maze_layout.animate_path_line(
+                        path_tuples,
+                        delay_ms=40,
+                        on_complete=on_path_done,
+                    )
+
+                def on_path_done():
+                    self.view.control_panel.update_metrics(
+                        visited_count=len(robot.visited_order),
+                        path_length=len(robot.shortest_solution),
+                        runtime=elapsed,
+                        status="BFS — Tìm thấy đường ngắn nhất!",
+                    )
+
+                # Tính delay tự động: nhanh hơn nếu mê cung lớn
+                visit_delay = max(5, min(50, 1000 // max(len(visited_cells), 1)))
+
+                self.view.maze_layout.animate_cells(
+                    visited_cells,
+                    delay_ms=visit_delay,
+                    on_complete=on_visited_done,
+                )
+            else:
+                self.view.control_panel.update_metrics(
+                    visited_count=len(robot.visited_order),
+                    path_length=0,
+                    runtime=elapsed,
+                    status="BFS — Không tìm thấy đường đi!",
+                )
+                messagebox.showinfo("Kết quả", "Không tìm thấy đường đi!")
+
+        except Exception as e:
+            messagebox.showerror("Lỗi BFS", str(e))
+
+    def find_all_paths(self) -> None:
+        """Tìm tất cả đường đi bằng DFS + Backtracking (có animation)."""
+        if self.maze is None:
+            messagebox.showwarning("Chưa có mê cung", "Vui lòng sinh hoặc nhập mê cung trước!")
+            return
+
+        # Dừng animation cũ nếu đang chạy
+        self.view.maze_layout.stop_animation()
+
+        try:
+            # Xoá đường đi cũ
+            self._render_maze()
+
+            # DFS thay đổi grid (đánh dấu tường) nên dùng bản copy
+            maze_copy = Maze(
+                rows=self.maze.rows,
+                cols=self.maze.cols,
+                grid=copy.deepcopy(self.maze.grid),
+                start_pos=self.maze.start_pos,
+                end_pos=self.maze.end_pos,
+            )
+
+            possible_solutions: list[list[Point]] = []
+
+            start_time = time.perf_counter()
+            finding_valid_paths(
+                maze=maze_copy,
+                current_pos=maze_copy.start_pos,
+                path=[],
+                possible_solutions=possible_solutions,
+            )
+            elapsed = time.perf_counter() - start_time
+
+            if possible_solutions:
+                # Tìm đường ngắn nhất trong tất cả đường đi
+                shortest = min(possible_solutions, key=len)
+
+                # Tập hợp tất cả ô đã duyệt
+                all_visited = set()
+                for sol in possible_solutions:
+                    for p in sol:
+                        all_visited.add(p)
+
+                self.view.control_panel.update_metrics(
+                    visited_count=len(all_visited),
+                    path_length=len(shortest),
+                    runtime=elapsed,
+                    status=f"DFS — Đang hiển thị {len(possible_solutions)} đường đi...",
+                )
+
+                # Bước 1: Animation tô ô đã duyệt
+                visited_cells = [
+                    (p.x, p.y, self.CELL_VISITED)
+                    for p in all_visited
+                    if p != self.maze.start_pos and p != self.maze.end_pos
+                ]
+
+                # Bước 2: Animation tô đường ngắn nhất
+                solution_cells = [
+                    (p.x, p.y, self.CELL_SOLUTION)
+                    for p in shortest
+                    if p != self.maze.start_pos and p != self.maze.end_pos
+                ]
+
+                # Bước 3: Animation vẽ đường nối
+                path_tuples = [(p.x, p.y) for p in shortest]
+
+                def on_visited_done():
+                    self.view.maze_layout.animate_cells(
+                        solution_cells,
+                        delay_ms=30,
+                        on_complete=on_solution_done,
+                    )
+
+                def on_solution_done():
+                    self.view.maze_layout.animate_path_line(
+                        path_tuples,
+                        delay_ms=40,
+                        on_complete=on_path_done,
+                    )
+
+                def on_path_done():
+                    self.view.control_panel.update_metrics(
+                        visited_count=len(all_visited),
+                        path_length=len(shortest),
+                        runtime=elapsed,
+                        status=f"DFS — Tìm thấy {len(possible_solutions)} đường đi",
+                    )
+
+                visit_delay = max(5, min(50, 1000 // max(len(visited_cells), 1)))
+
+                self.view.maze_layout.animate_cells(
+                    visited_cells,
+                    delay_ms=visit_delay,
+                    on_complete=on_visited_done,
+                )
+            else:
+                self.view.control_panel.update_metrics(
+                    visited_count=0,
+                    path_length=0,
+                    runtime=elapsed,
+                    status="DFS — Không tìm thấy đường đi!",
+                )
+                messagebox.showinfo("Kết quả", "Không tìm thấy đường đi!")
+
+        except Exception as e:
+            messagebox.showerror("Lỗi DFS", str(e))
+
+    # ================================================================
+    #  XỬ LÝ CLICK CHUỘT
+    # ================================================================
+
+    def handle_left_click(self, row: int, col: int) -> None:
+        """Xử lý click chuột trái dựa trên chế độ hiện tại."""
+        mode = self.view.control_panel.get_mouse_mode()
+        if mode == "wall":
+            self.add_wall(row, col)
+        elif mode == "point":
+            self.set_start_point(row, col)
+
+    def handle_right_click(self, row: int, col: int) -> None:
+        """Xử lý click chuột phải dựa trên chế độ hiện tại."""
+        mode = self.view.control_panel.get_mouse_mode()
+        if mode == "wall":
+            self.remove_wall(row, col)
+        elif mode == "point":
+            self.set_end_point(row, col)
+
+    def set_start_point(self, row: int, col: int) -> None:
+        if self.maze is None:
+            return
+        # Chỉ cho phép đặt ở ô đường đi
+        if self.maze.grid[row][col] != self.CELL_WALL:
+            self.maze.start_pos = Point(x=row, y=col)
+            self.reset_paths()
+
+    def set_end_point(self, row: int, col: int) -> None:
+        if self.maze is None:
+            return
+        # Chỉ cho phép đặt ở ô đường đi
+        if self.maze.grid[row][col] != self.CELL_WALL:
+            self.maze.end_pos = Point(x=row, y=col)
+            self.reset_paths()
+
+    def add_wall(self, row: int, col: int) -> None:
+        """Thêm tường tại ô (row, col)."""
+        if self.maze is None:
+            return
+
+        p = Point(x=row, y=col)
+        if p == self.maze.start_pos or p == self.maze.end_pos:
+            return  # Không cho đặt tường lên start/end
+
+        self.maze.grid[row][col] = 1
+        self.view.maze_layout.update_cell(row, col, self.CELL_WALL)
+
+    def remove_wall(self, row: int, col: int) -> None:
+        """Xoá tường tại ô (row, col)."""
+        if self.maze is None:
+            return
+
+        self.maze.grid[row][col] = 0
+        self.view.maze_layout.update_cell(row, col, self.CELL_PATH)
+
+    # ================================================================
+    #  XOÁ ĐƯỜNG ĐI CŨ
+    # ================================================================
+
+    def reset_paths(self) -> None:
+        """Xoá toàn bộ đường đi đã vẽ, giữ nguyên cấu trúc mê cung."""
+        if self.maze is None:
+            return
+
+        self._render_maze()
+        self.view.control_panel.update_metrics(status="Đã xoá đường đi")
+
+    # ================================================================
+    #  NHẬP / LƯU MÊ CUNG
+    # ================================================================
+
+    def import_maze(self) -> None:
+        """Nhập mê cung từ file JSON."""
+        file_path = filedialog.askopenfilename(
+            title="Chọn file mê cung JSON",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+        )
+
+        if not file_path:
+            return
+
+        try:
+            success, data = FileProcessor.read_json(file_path)
+
+            if not success:
+                messagebox.showerror("Lỗi đọc file", data)
+                return
+
+            self.maze = Maze(
+                rows=data["rows"],
+                cols=data["cols"],
+                grid=data["grid"],
+                start_pos=Point(x=data["start_pos"]["x"], y=data["start_pos"]["y"]),
+                end_pos=Point(x=data["end_pos"]["x"], y=data["end_pos"]["y"]),
+            )
+
+            self._render_maze()
+            self.view.control_panel.update_metrics(status="Đã nhập mê cung từ file")
+
+        except Exception as e:
+            messagebox.showerror("Lỗi nhập mê cung", str(e))
+
+    def save_maze(self) -> None:
+        """Lưu mê cung hiện tại ra file JSON."""
+        if self.maze is None:
+            messagebox.showwarning("Chưa có mê cung", "Vui lòng sinh hoặc nhập mê cung trước!")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            title="Lưu mê cung",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+        )
+
+        if not file_path:
+            return
+
+        try:
+            data = {
+                "rows": self.maze.rows,
+                "cols": self.maze.cols,
+                "grid": self.maze.grid,
+                "start_pos": {"x": self.maze.start_pos.x, "y": self.maze.start_pos.y},
+                "end_pos": {"x": self.maze.end_pos.x, "y": self.maze.end_pos.y},
+            }
+
+            success, msg = FileProcessor.write_json(file_path, data)
+
+            if success:
+                messagebox.showinfo("Thành công", "Đã lưu mê cung!")
+                self.view.control_panel.update_metrics(status="Đã lưu mê cung")
+            else:
+                messagebox.showerror("Lỗi lưu file", msg)
+
+        except Exception as e:
+            messagebox.showerror("Lỗi lưu mê cung", str(e))
+
+    # ================================================================
+    #  HELPER — Vẽ lại mê cung lên canvas
+    # ================================================================
+
+    def _render_maze(self) -> None:
+        """Vẽ mê cung lên MazeLayout, bao gồm tô màu start/end."""
+        if self.maze is None:
+            return
+
+        # Tạo bản copy grid để tô màu start/end mà không ảnh hưởng dữ liệu gốc
+        display_grid = copy.deepcopy(self.maze.grid)
+
+        start = self.maze.start_pos
+        end = self.maze.end_pos
+
+        display_grid[start.x][start.y] = self.CELL_START
+        display_grid[end.x][end.y] = self.CELL_END
+
+        self.view.maze_layout.draw_maze(display_grid)
