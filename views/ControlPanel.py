@@ -15,14 +15,52 @@ class ControlPanel(tk.Frame):
             parent,
             width=360,
             bg=self.BG_COLOR,
-            padx=16,
-            pady=16,
         )
 
         self.pack_propagate(False)
         self._event_handler: Callable[[str], None] | None = None
+        
+        self.mouse_mode = tk.StringVar(value="wall")
+
+        # --- Scrollable setup ---
+        self._canvas = tk.Canvas(self, bg=self.BG_COLOR, highlightthickness=0)
+        self._scrollbar = ttk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
+        self._inner_frame = tk.Frame(self._canvas, bg=self.BG_COLOR, padx=16, pady=16)
+
+        self._inner_frame.bind(
+            "<Configure>",
+            lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")),
+        )
+
+        self._canvas_window = self._canvas.create_window(
+            (0, 0), window=self._inner_frame, anchor="nw"
+        )
+
+        self._canvas.configure(yscrollcommand=self._scrollbar.set)
+
+        self._scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Đồng bộ chiều rộng inner_frame với canvas
+        self._canvas.bind("<Configure>", self._on_canvas_configure)
+
+        # Hỗ trợ cuộn bằng chuột
+        self._inner_frame.bind("<Enter>", self._bind_mousewheel)
+        self._inner_frame.bind("<Leave>", self._unbind_mousewheel)
 
         self._build_ui()
+
+    def _on_canvas_configure(self, event) -> None:
+        self._canvas.itemconfig(self._canvas_window, width=event.width)
+
+    def _bind_mousewheel(self, event) -> None:
+        self._canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+    def _unbind_mousewheel(self, event) -> None:
+        self._canvas.unbind_all("<MouseWheel>")
+
+    def _on_mousewheel(self, event) -> None:
+        self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def bind_event_handler(self, handler: Callable[[str], None]) -> None:
         self._event_handler = handler
@@ -33,6 +71,9 @@ class ControlPanel(tk.Frame):
 
     def _build_ui(self) -> None:
         self._create_title("🎛️ BẢNG ĐIỀU KHIỂN", 14)
+
+        self._build_mouse_mode_section()
+        self._separator()
 
         self._build_maze_generation_section()
         self._separator()
@@ -48,21 +89,35 @@ class ControlPanel(tk.Frame):
 
         self._build_metrics_section()
 
+    def _build_mouse_mode_section(self) -> None:
+        self._create_section_title("🖱️ Chế độ chuột")
+        
+        frame = tk.Frame(self._inner_frame, bg=self.BG_COLOR)
+        frame.pack(fill=tk.X, pady=(4, 8))
+        
+        tk.Radiobutton(
+            frame, text="🧱 Vẽ tường\n(Trái: Thêm, Phải: Xoá)", 
+            variable=self.mouse_mode, value="wall",
+            bg=self.BUTTON_BG, fg=self.TEXT_COLOR, 
+            selectcolor="#D1D8E0", activebackground=self.BUTTON_ACTIVE_BG, 
+            cursor="hand2", indicatoron=False, 
+            relief=tk.FLAT, bd=1, padx=10, pady=8, font=("Arial", 10)
+        ).pack(fill=tk.X, pady=(0, 4))
+        
+        tk.Radiobutton(
+            frame, text="📍 Đặt điểm\n(Trái: Bắt đầu, Phải: Đích)", 
+            variable=self.mouse_mode, value="point",
+            bg=self.BUTTON_BG, fg=self.TEXT_COLOR, 
+            selectcolor="#D1D8E0", activebackground=self.BUTTON_ACTIVE_BG, 
+            cursor="hand2", indicatoron=False, 
+            relief=tk.FLAT, bd=1, padx=10, pady=8, font=("Arial", 10)
+        ).pack(fill=tk.X)
+
     def _build_maze_generation_section(self) -> None:
         self._create_section_title("📦 Sinh mê cung ngẫu nhiên")
 
-        self.gen_rows_entry = self._create_labeled_entry(self, "Số hàng:", "21")
-        self.gen_cols_entry = self._create_labeled_entry(self, "Số cột:", "21")
-
-        point_frame = self._create_point_pair_frame(self)
-
-        self.gen_start_row_entry, self.gen_start_col_entry = self._create_point_box(
-            point_frame, "Điểm bắt đầu", "1", "1"
-        )
-
-        self.gen_end_row_entry, self.gen_end_col_entry = self._create_point_box(
-            point_frame, "Điểm kết thúc", "19", "19"
-        )
+        self.gen_rows_entry = self._create_labeled_entry(self._inner_frame, "Số hàng:", "21")
+        self.gen_cols_entry = self._create_labeled_entry(self._inner_frame, "Số cột:", "21")
 
         self._create_button(
             text="Sinh mê cung",
@@ -72,23 +127,13 @@ class ControlPanel(tk.Frame):
     def _build_pathfinding_section(self) -> None:
         self._create_section_title("🧭 Tìm đường đi")
 
-        point_frame = self._create_point_pair_frame(self)
-
-        self.find_start_row_entry, self.find_start_col_entry = self._create_point_box(
-            point_frame, "Điểm bắt đầu", "1", "1"
-        )
-
-        self.find_end_row_entry, self.find_end_col_entry = self._create_point_box(
-            point_frame, "Điểm kết thúc", "19", "19"
-        )
-
         self._create_button(
-            text="Hiển thị tất cả đường đi",
+            text="Tìm đường theo DFS",
             command=lambda: self._emit("find_all_paths"),
         )
 
         self._create_button(
-            text="Tìm đường ngắn nhất",
+            text="Tìm đường theo BFS",
             command=lambda: self._emit("find_shortest_path"),
         )
 
@@ -123,7 +168,7 @@ class ControlPanel(tk.Frame):
 
     def _create_title(self, text: str, size: int) -> None:
         tk.Label(
-            self,
+            self._inner_frame,
             text=text,
             font=("Arial", size, "bold"),
             bg=self.BG_COLOR,
@@ -132,7 +177,7 @@ class ControlPanel(tk.Frame):
 
     def _create_section_title(self, text: str) -> None:
         tk.Label(
-            self,
+            self._inner_frame,
             text=text,
             font=("Arial", 11, "bold"),
             bg=self.BG_COLOR,
@@ -235,7 +280,7 @@ class ControlPanel(tk.Frame):
 
     def _create_button(self, text: str, command: Callable[[], None]) -> None:
         tk.Button(
-            self,
+            self._inner_frame,
             text=text,
             command=command,
             font=("Arial", 10),
@@ -251,7 +296,7 @@ class ControlPanel(tk.Frame):
 
     def _create_metric_label(self, text: str) -> tk.Label:
         label = tk.Label(
-            self,
+            self._inner_frame,
             text=text,
             font=("Arial", 10),
             bg=self.BG_COLOR,
@@ -262,25 +307,16 @@ class ControlPanel(tk.Frame):
         return label
 
     def _separator(self) -> None:
-        ttk.Separator(self, orient="horizontal").pack(fill=tk.X, pady=12)
+        ttk.Separator(self._inner_frame, orient="horizontal").pack(fill=tk.X, pady=12)
 
     def get_generation_input(self) -> dict:
         return {
             "rows": int(self.gen_rows_entry.get()),
             "cols": int(self.gen_cols_entry.get()),
-            "start_row": int(self.gen_start_row_entry.get()),
-            "start_col": int(self.gen_start_col_entry.get()),
-            "end_row": int(self.gen_end_row_entry.get()),
-            "end_col": int(self.gen_end_col_entry.get()),
         }
 
-    def get_pathfinding_input(self) -> dict:
-        return {
-            "start_row": int(self.find_start_row_entry.get()),
-            "start_col": int(self.find_start_col_entry.get()),
-            "end_row": int(self.find_end_row_entry.get()),
-            "end_col": int(self.find_end_col_entry.get()),
-        }
+    def get_mouse_mode(self) -> str:
+        return self.mouse_mode.get()
 
     def update_metrics(
         self,

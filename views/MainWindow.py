@@ -1,6 +1,7 @@
 import tkinter as tk
 from typing import Callable
 
+from controllers.FileController import FileController
 from views.ControlPanel import ControlPanel
 from views.MazeLayout import MazeLayout
 
@@ -11,6 +12,7 @@ class MainWindow:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.controller = None
+        self.file_controller = None
 
         self.control_panel: ControlPanel | None = None
         self.maze_layout: MazeLayout | None = None
@@ -36,15 +38,16 @@ class MainWindow:
 
     def set_controller(self, controller) -> None:
         self.controller = controller
+        self.file_controller = FileController(controller)
 
     def _handle_control_event(self, event_name: str) -> None:
-        if self.controller is None:
+        if self.controller is None or self.file_controller is None:
             return
 
         actions: dict[str, Callable[[], None]] = {
             "generate_maze": self.controller.generate_maze,
-            "import_maze": self.controller.import_maze,
-            "save_maze": self.controller.save_maze,
+            "import_maze": self.file_controller.import_maze,
+            "save_maze": self.file_controller.save_maze,
             "find_all_paths": self.controller.find_all_paths,
             "find_shortest_path": self.controller.find_shortest_path,
             "reset_paths": self.controller.reset_paths,
@@ -60,8 +63,8 @@ class MainWindow:
             return
 
         actions: dict[str, Callable[[int, int], None]] = {
-            "add_wall": self.controller.add_wall,
-            "remove_wall": self.controller.remove_wall,
+            "left_click": self.controller.handle_left_click,
+            "right_click": self.controller.handle_right_click,
         }
 
         action = actions.get(event_name)
