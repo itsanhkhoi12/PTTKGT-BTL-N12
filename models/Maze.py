@@ -1,12 +1,5 @@
 from pydantic import BaseModel, Field
-from dataclasses import dataclass
-
-# Định nghĩa vị trí theo ô (x;y)
-
-@dataclass(frozen=True)
-class Point:
-    x: int
-    y: int
+from models.Point import Point
 
 class Maze(BaseModel):
     id: str = ''
@@ -23,4 +16,4 @@ class Maze(BaseModel):
 
     # Điểm kết thúc của mê cung
     end_pos: Point
-
+    
