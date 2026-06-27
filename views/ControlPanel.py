@@ -139,6 +139,40 @@ class ControlPanel(tk.Frame):
             fg=self.SUBTEXT_COLOR,
         ).pack(anchor=tk.W, pady=(0, 8))
 
+    def _create_inline_entries(
+    self,
+    parent: tk.Widget,
+    fields: list[tuple[str, str]],
+) -> list[tk.Entry]:
+        frame = tk.Frame(parent, bg=self.BG_COLOR)
+        frame.pack(fill=tk.X, pady=(2, 4))
+
+        entries: list[tk.Entry] = []
+
+        for label, default in fields:
+            tk.Label(
+                frame,
+                text=label,
+                bg=self.BG_COLOR,
+                fg=self.TEXT_COLOR,
+                font=("Arial", 10),
+            ).pack(side=tk.LEFT)
+
+            entry = tk.Entry(
+                frame,
+                width=5,
+                font=("Arial", 10),
+                relief=tk.SOLID,
+                bd=1,
+                justify="center",
+            )
+            entry.insert(0, default)
+            entry.pack(side=tk.LEFT, padx=(5, 12))
+
+            entries.append(entry)
+
+        return entries
+
     def _create_labeled_entry(
         self,
         parent: tk.Widget,
@@ -189,8 +223,13 @@ class ControlPanel(tk.Frame):
         )
         box.pack(fill=tk.X, pady=(0, 8))
 
-        row_entry = self._create_labeled_entry(box, "Hàng:", default_row)
-        col_entry = self._create_labeled_entry(box, "Cột:", default_col)
+        row_entry, col_entry = self._create_inline_entries(
+            parent=box,
+            fields=[
+                ("Hàng:", default_row),
+                ("Cột:", default_col),
+            ],
+        )
 
         return row_entry, col_entry
 
