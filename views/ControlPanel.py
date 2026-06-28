@@ -119,6 +119,24 @@ class ControlPanel(tk.Frame):
         self.gen_rows_entry = self._create_labeled_entry(self._inner_frame, "Số hàng:", "21")
         self.gen_cols_entry = self._create_labeled_entry(self._inner_frame, "Số cột:", "21")
 
+        tk.Label(
+            self._inner_frame,
+            text="Thuật toán sinh:",
+            bg=self.BG_COLOR,
+            fg=self.TEXT_COLOR,
+            font=("Arial", 10),
+        ).pack(anchor=tk.W, pady=(2, 0))
+
+        self.gen_algo_var = tk.StringVar(value="DFS (Recursive Backtracking)")
+        self.gen_algo_cb = ttk.Combobox(
+            self._inner_frame,
+            textvariable=self.gen_algo_var,
+            values=["DFS (Recursive Backtracking)", "Prim's Algorithm"],
+            state="readonly",
+            font=("Arial", 10),
+        )
+        self.gen_algo_cb.pack(fill=tk.X, pady=(2, 8))
+
         self._create_button(
             text="Sinh mê cung",
             command=lambda: self._emit("generate_maze"),
@@ -127,14 +145,32 @@ class ControlPanel(tk.Frame):
     def _build_pathfinding_section(self) -> None:
         self._create_section_title("🧭 Tìm đường đi")
 
-        self._create_button(
-            text="Tìm đường theo DFS",
-            command=lambda: self._emit("find_all_paths"),
+        tk.Label(
+            self._inner_frame,
+            text="Thuật toán tìm đường:",
+            bg=self.BG_COLOR,
+            fg=self.TEXT_COLOR,
+            font=("Arial", 10),
+        ).pack(anchor=tk.W, pady=(2, 0))
+
+        self.solve_algo_var = tk.StringVar(value="BFS (Breadth-First Search)")
+        self.solve_algo_cb = ttk.Combobox(
+            self._inner_frame,
+            textvariable=self.solve_algo_var,
+            values=[
+                "BFS (Breadth-First Search)",
+                "DFS (Depth-First Search - All Paths)",
+                "A* Search (Heuristic)",
+                "Dijkstra's Algorithm",
+            ],
+            state="readonly",
+            font=("Arial", 10),
         )
+        self.solve_algo_cb.pack(fill=tk.X, pady=(2, 8))
 
         self._create_button(
-            text="Tìm đường theo BFS",
-            command=lambda: self._emit("find_shortest_path"),
+            text="Tìm đường đi",
+            command=lambda: self._emit("solve_maze"),
         )
 
     def _build_file_section(self) -> None:
@@ -314,6 +350,24 @@ class ControlPanel(tk.Frame):
             "rows": int(self.gen_rows_entry.get()),
             "cols": int(self.gen_cols_entry.get()),
         }
+
+    def get_maze_gen_algorithm(self) -> str:
+        val = self.gen_algo_var.get()
+        if "Prim" in val:
+            return "prim"
+        return "dfs"
+
+    def get_solve_algorithm(self) -> str:
+        val = self.solve_algo_var.get()
+        if "BFS" in val:
+            return "bfs"
+        elif "DFS" in val:
+            return "dfs"
+        elif "A*" in val:
+            return "astar"
+        elif "Dijkstra" in val:
+            return "dijkstra"
+        return "bfs"
 
     def get_mouse_mode(self) -> str:
         return self.mouse_mode.get()
