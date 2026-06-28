@@ -9,7 +9,7 @@
     | Võ Đức Thịnh| Triển khai BFS|100%|
     | Nguyễn Đức Tỉnh|Thiết kế giao diện ứng dụng, tích hợp thuật toán vào giao diện|100%|
     |Nguyễn Minh Hiếu|||
-    |Nguyễn Trí Đức|||
+    |Nguyễn Trí Đức|Triển khai Prim sinh mê cung, tìm đường đi ngắn nhất với thuật toán A* và Dijkstra|100%|
     |Trương Công Huy|||
 
 ## Cách chạy ứng dụng
