@@ -7,6 +7,9 @@ from models.Maze import Maze
 from models.Point import Point
 from algorithms.bfs import bfs_solve
 from algorithms.dfs import finding_valid_paths, maze_generation
+from algorithms.a_star import a_star_solve
+from algorithms.dijkstra import dijkstra_solve
+from algorithms.prim import prim_maze_generation
 
 
 class MazeController:
@@ -43,12 +46,21 @@ class MazeController:
             start = Point(x=1, y=1)
             end = Point(x=rows - 2, y=cols - 2)
 
-            self.maze = maze_generation(
-                row=rows,
-                col=cols,
-                start_pos=start,
-                end_pos=end,
-            )
+            algo = self.view.control_panel.get_maze_gen_algorithm()
+            if algo == "prim":
+                self.maze = prim_maze_generation(
+                    row=rows,
+                    col=cols,
+                    start_pos=start,
+                    end_pos=end,
+                )
+            else:
+                self.maze = maze_generation(
+                    row=rows,
+                    col=cols,
+                    start_pos=start,
+                    end_pos=end,
+                )
 
             self._render_maze()
             self.view.control_panel.update_metrics(status="Đã sinh mê cung")
@@ -62,6 +74,34 @@ class MazeController:
 
     def find_shortest_path(self) -> None:
         """Tìm đường đi ngắn nhất bằng BFS (có animation)."""
+        self._solve_and_animate(bfs_solve, "BFS")
+
+    def find_shortest_path_astar(self) -> None:
+        """Tìm đường đi ngắn nhất bằng A* (có animation)."""
+        self._solve_and_animate(a_star_solve, "A*")
+
+    def find_shortest_path_dijkstra(self) -> None:
+        """Tìm đường đi ngắn nhất bằng Dijkstra (có animation)."""
+        self._solve_and_animate(dijkstra_solve, "Dijkstra")
+
+    def solve_maze(self) -> None:
+        """Tìm đường đi bằng thuật toán đã chọn trong bảng điều khiển."""
+        if self.maze is None:
+            messagebox.showwarning("Chưa có mê cung", "Vui lòng sinh hoặc nhập mê cung trước!")
+            return
+
+        algo = self.view.control_panel.get_solve_algorithm()
+        if algo == "bfs":
+            self.find_shortest_path()
+        elif algo == "dfs":
+            self.find_all_paths()
+        elif algo == "astar":
+            self.find_shortest_path_astar()
+        elif algo == "dijkstra":
+            self.find_shortest_path_dijkstra()
+
+    def _solve_and_animate(self, solver_func, algo_name: str) -> None:
+        """Phương thức dùng chung để giải mê cung và vẽ hoạt ảnh đường đi ngắn nhất."""
         if self.maze is None:
             messagebox.showwarning("Chưa có mê cung", "Vui lòng sinh hoặc nhập mê cung trước!")
             return
@@ -74,7 +114,7 @@ class MazeController:
             self._render_maze()
 
             start_time = time.perf_counter()
-            robot = bfs_solve(self.maze)
+            robot = solver_func(self.maze)
             elapsed = time.perf_counter() - start_time
 
             if robot.shortest_solution:
@@ -82,7 +122,7 @@ class MazeController:
                     visited_count=len(robot.visited_order),
                     path_length=len(robot.shortest_solution),
                     runtime=elapsed,
-                    status="BFS — Đang hiển thị...",
+                    status=f"{algo_name} — Đang hiển thị...",
                 )
 
                 # Bước 1: Animation tô màu các ô đã duyệt
@@ -121,7 +161,7 @@ class MazeController:
                         visited_count=len(robot.visited_order),
                         path_length=len(robot.shortest_solution),
                         runtime=elapsed,
-                        status="BFS — Tìm thấy đường ngắn nhất!",
+                        status=f"{algo_name} — Tìm thấy đường ngắn nhất!",
                     )
 
                 # Tính delay tự động: nhanh hơn nếu mê cung lớn
@@ -137,12 +177,13 @@ class MazeController:
                     visited_count=len(robot.visited_order),
                     path_length=0,
                     runtime=elapsed,
-                    status="BFS — Không tìm thấy đường đi!",
+                    status=f"{algo_name} — Không tìm thấy đường đi!",
                 )
                 messagebox.showinfo("Kết quả", "Không tìm thấy đường đi!")
 
         except Exception as e:
-            messagebox.showerror("Lỗi BFS", str(e))
+            messagebox.showerror(f"Lỗi {algo_name}", str(e))
+
 
     def find_all_paths(self) -> None:
         """Tìm tất cả đường đi bằng DFS + Backtracking (có animation)."""

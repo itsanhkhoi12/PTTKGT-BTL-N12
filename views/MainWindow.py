@@ -50,6 +50,7 @@ class MainWindow:
             "save_maze": self.file_controller.save_maze,
             "find_all_paths": self.controller.find_all_paths,
             "find_shortest_path": self.controller.find_shortest_path,
+            "solve_maze": self.controller.solve_maze,
             "reset_paths": self.controller.reset_paths,
         }
 
