@@ -1,7 +1,9 @@
 # Bài tập lớn KTHP Phân tích thiết kế giải thuật
 
 - Đề tài: Xây dựng ứng dụng sinh mê cung và tìm đường đi sử dụng DFS, BFS và Backtracking 
+
 - Nhóm thực hiện: Nhóm 12
+
 - Danh sách sinh viên thực hiện
 
     |Họ và tên sinh viên|Công việc thực hiện|Phần trăm đóng góp|
@@ -12,6 +14,11 @@
     |Nguyễn Minh Hiếu|Tìm hiểu, phân tích cơ sở lý thuyết và cách áp dụng trong ứng dụng, thuyết trình|100%|
     |Nguyễn Trí Đức|Triển khai Prim sinh mê cung, tìm đường đi ngắn nhất với thuật toán A* và Dijkstra|100%|
     |Trương Công Huy|Đánh giá ứng dụng|100%|
+
+- Ảnh preview ứng dụng:
+
+![Ảnh chụp màn hình ứng dụng](/assets/previewing.png)
+
 
 ## Cơ sở lý thuyết
 
