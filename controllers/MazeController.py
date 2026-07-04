@@ -115,13 +115,15 @@ class MazeController:
 
             start_time = time.perf_counter()
             robot = solver_func(self.maze)
-            elapsed = time.perf_counter() - start_time
+            solve_elapsed = time.perf_counter() - start_time
 
             if robot.shortest_solution:
+                final_elapsed = {"value": solve_elapsed}
+
                 self.view.control_panel.update_metrics(
                     visited_count=len(robot.visited_order),
                     path_length=len(robot.shortest_solution),
-                    runtime=elapsed,
+                    runtime=solve_elapsed,
                     status=f"{algo_name} — Đang hiển thị...",
                 )
 
@@ -143,24 +145,28 @@ class MazeController:
                 path_tuples = [(p.x, p.y) for p in robot.shortest_solution]
 
                 def on_visited_done():
-                    self.view.maze_layout.animate_cells(
+                    self.view.maze_layout.animate_solution_path_with_robot(
                         solution_cells,
-                        delay_ms=30,
-                        on_complete=on_solution_done,
+                        path_tuples,
+                        delay_ms=40,
+                        on_cells_complete=on_solution_done,
+                        on_complete=on_path_done,
                     )
 
                 def on_solution_done():
-                    self.view.maze_layout.animate_path_line(
-                        path_tuples,
-                        delay_ms=40,
-                        on_complete=on_path_done,
+                    final_elapsed["value"] = time.perf_counter() - start_time
+                    self.view.control_panel.update_metrics(
+                        visited_count=len(robot.visited_order),
+                        path_length=len(robot.shortest_solution),
+                        runtime=final_elapsed["value"],
+                        status=f"{algo_name} — Đã chạm đích",
                     )
 
                 def on_path_done():
                     self.view.control_panel.update_metrics(
                         visited_count=len(robot.visited_order),
                         path_length=len(robot.shortest_solution),
-                        runtime=elapsed,
+                        runtime=final_elapsed["value"],
                         status=f"{algo_name} — Tìm thấy đường ngắn nhất!",
                     )
 
@@ -176,14 +182,13 @@ class MazeController:
                 self.view.control_panel.update_metrics(
                     visited_count=len(robot.visited_order),
                     path_length=0,
-                    runtime=elapsed,
+                    runtime=solve_elapsed,
                     status=f"{algo_name} — Không tìm thấy đường đi!",
                 )
                 messagebox.showinfo("Kết quả", "Không tìm thấy đường đi!")
 
         except Exception as e:
             messagebox.showerror(f"Lỗi {algo_name}", str(e))
-
 
     def find_all_paths(self) -> None:
         """Tìm tất cả đường đi bằng DFS + Backtracking (có animation)."""
@@ -216,11 +221,13 @@ class MazeController:
                 path=[],
                 possible_solutions=possible_solutions,
             )
-            elapsed = time.perf_counter() - start_time
+            solve_elapsed = time.perf_counter() - start_time
 
             if possible_solutions:
                 # Tìm đường ngắn nhất trong tất cả đường đi
                 shortest = min(possible_solutions, key=len)
+
+                final_elapsed = {"value": solve_elapsed}
 
                 # Tập hợp tất cả ô đã duyệt
                 all_visited = set()
@@ -231,7 +238,7 @@ class MazeController:
                 self.view.control_panel.update_metrics(
                     visited_count=len(all_visited),
                     path_length=len(shortest),
-                    runtime=elapsed,
+                    runtime=solve_elapsed,
                     status=f"DFS — Đang hiển thị {len(possible_solutions)} đường đi...",
                 )
 
@@ -253,24 +260,28 @@ class MazeController:
                 path_tuples = [(p.x, p.y) for p in shortest]
 
                 def on_visited_done():
-                    self.view.maze_layout.animate_cells(
+                    self.view.maze_layout.animate_solution_path_with_robot(
                         solution_cells,
-                        delay_ms=30,
-                        on_complete=on_solution_done,
+                        path_tuples,
+                        delay_ms=40,
+                        on_cells_complete=on_solution_done,
+                        on_complete=on_path_done,
                     )
 
                 def on_solution_done():
-                    self.view.maze_layout.animate_path_line(
-                        path_tuples,
-                        delay_ms=40,
-                        on_complete=on_path_done,
+                    final_elapsed["value"] = time.perf_counter() - start_time
+                    self.view.control_panel.update_metrics(
+                        visited_count=len(all_visited),
+                        path_length=len(shortest),
+                        runtime=final_elapsed["value"],
+                        status=f"DFS — Đã chạm đích",
                     )
 
                 def on_path_done():
                     self.view.control_panel.update_metrics(
                         visited_count=len(all_visited),
                         path_length=len(shortest),
-                        runtime=elapsed,
+                        runtime=final_elapsed["value"],
                         status=f"DFS — Tìm thấy {len(possible_solutions)} đường đi",
                     )
 
@@ -285,7 +296,7 @@ class MazeController:
                 self.view.control_panel.update_metrics(
                     visited_count=0,
                     path_length=0,
-                    runtime=elapsed,
+                    runtime=solve_elapsed,
                     status="DFS — Không tìm thấy đường đi!",
                 )
                 messagebox.showinfo("Kết quả", "Không tìm thấy đường đi!")
